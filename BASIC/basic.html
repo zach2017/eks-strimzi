@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terraform + AWS EKS — A Beginner's Guide</title>
+<style>
+  /* ============================================================
+     IBM Carbon-inspired styling.
+     IBM's design system uses the "IBM Plex" type family,
+     sharp corners (no rounded edges), a white background,
+     and dark blue / near-black text. We follow that here.
+     ============================================================ */
+
+  /* IBM Plex fonts from Google Fonts (Plex is IBM's official open-source typeface). */
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root{
+    --bg:#ffffff;            /* white background, IBM style */
+    --ink:#161616;           /* near-black body text (Carbon "Gray 100") */
+    --blue:#0f62fe;          /* IBM blue ("Blue 60") — primary accent */
+    --blue-dark:#002d9c;     /* darker blue for headings/links */
+    --gray-line:#e0e0e0;     /* hairline borders (Carbon "Gray 20") */
+    --gray-soft:#f4f4f4;     /* light panel fill (Carbon "Gray 10") */
+    --gray-mid:#525252;      /* secondary text (Carbon "Gray 70") */
+    --code-bg:#f4f4f4;       /* code block background */
+    --warn-bg:#fff8e1;       /* soft amber for "heads up" notes */
+    --warn-border:#f1c21b;   /* IBM yellow */
+    --base-font:18px;        /* JS changes this between 14px and 36px */
+  }
+
+  *{ box-sizing:border-box; }
+
+  html{ scroll-behavior:smooth; }
+
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', Arial, sans-serif;
+    font-size:var(--base-font);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- Top control bar (sticks to top, holds font sizer) ---------- */
+  .toolbar{
+    position:sticky;
+    top:0;
+    z-index:50;
+    background:var(--ink);
+    color:#fff;
+    border-bottom:3px solid var(--blue);
+    padding:10px 16px;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:12px;
+  }
+  .toolbar .brand{
+    font-weight:700;
+    letter-spacing:.5px;
+    font-size:.95rem;
+    margin-right:auto;
+  }
+  .toolbar .brand span{ color:var(--blue); }
+
+  .sizer{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .sizer label{ font-size:.8rem; color:#c6c6c6; }
+  .sizer input[type=range]{ width:150px; accent-color:var(--blue); }
+  .sizer button{
+    background:#fff; color:var(--ink); border:none; cursor:pointer;
+    font-family:'IBM Plex Mono', monospace; font-weight:600;
+    padding:6px 10px; font-size:.8rem;
+  }
+  .sizer button:hover{ background:var(--blue); color:#fff; }
+  .sizer .readout{
+    font-family:'IBM Plex Mono', monospace; font-size:.8rem;
+    min-width:54px; text-align:center; color:#fff;
+  }
+
+  /* ---------- Layout ---------- */
+  .wrap{ max-width:960px; margin:0 auto; padding:0 20px 80px; }
+
+  header.hero{
+    padding:56px 0 32px;
+    border-bottom:1px solid var(--gray-line);
+  }
+  header.hero .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    text-transform:uppercase; letter-spacing:2px;
+    color:var(--blue-dark); font-size:.75rem; font-weight:600;
+    margin:0 0 12px;
+  }
+  header.hero h1{
+    font-size:2.1rem; line-height:1.15; margin:0 0 14px;
+    font-weight:700; color:var(--ink);
+  }
+  header.hero p{ color:var(--gray-mid); max-width:60ch; margin:0; }
+
+  h2{
+    font-size:1.5rem; font-weight:700; color:var(--blue-dark);
+    margin:48px 0 6px; padding-top:8px;
+    border-top:2px solid var(--ink);
+  }
+  h2 .num{
+    font-family:'IBM Plex Mono', monospace; color:var(--blue);
+    font-size:1rem; display:block; margin-bottom:4px;
+  }
+  h3{ font-size:1.15rem; font-weight:600; color:var(--ink); margin:28px 0 8px; }
+
+  p{ margin:12px 0; }
+
+  a{ color:var(--blue-dark); text-decoration:underline; text-underline-offset:2px; }
+  a:hover{ color:var(--blue); }
+
+  /* ---------- Code blocks ---------- */
+  pre{
+    background:var(--code-bg);
+    border-left:4px solid var(--blue);
+    padding:16px 18px; overflow-x:auto;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:.92em; line-height:1.5; margin:16px 0;
+  }
+  code{ font-family:'IBM Plex Mono', monospace; }
+  p code, li code{
+    background:var(--gray-soft); padding:1px 5px; font-size:.9em;
+    border:1px solid var(--gray-line);
+  }
+  .tok-key{ color:var(--blue-dark); font-weight:600; }   /* keywords */
+  .tok-str{ color:#0e6027; }                              /* strings (green) */
+  .tok-com{ color:var(--gray-mid); font-style:italic; }   /* comments */
+  .tok-num{ color:#8a3ffc; }                              /* numbers (purple) */
+
+  /* ---------- Line-by-line explainer rows ---------- */
+  .lines{ border:1px solid var(--gray-line); margin:18px 0; }
+  .line{
+    display:grid;
+    grid-template-columns:46px 1fr;
+    border-bottom:1px solid var(--gray-line);
+  }
+  .line:last-child{ border-bottom:none; }
+  .line .ln{
+    background:var(--gray-soft); color:var(--gray-mid);
+    font-family:'IBM Plex Mono', monospace; font-size:.8em;
+    text-align:right; padding:12px 8px; user-select:none;
+    border-right:1px solid var(--gray-line);
+  }
+  .line .body{ padding:12px 14px; }
+  .line .body .codeline{
+    font-family:'IBM Plex Mono', monospace; font-size:.92em;
+    background:var(--code-bg); padding:6px 8px; display:block;
+    overflow-x:auto; white-space:pre;
+  }
+  .line .body .what{ margin:8px 0 0; }
+  .line .body .what b{ color:var(--blue-dark); }
+
+  /* ---------- "More info" expandable popups ---------- */
+  .more{
+    margin:10px 0 0; border:1px solid var(--gray-line);
+    background:#fff;
+  }
+  .more > summary{
+    cursor:pointer; list-style:none; padding:8px 12px;
+    font-size:.82rem; font-weight:600; color:var(--blue-dark);
+    background:var(--gray-soft); display:flex; align-items:center; gap:8px;
+    user-select:none;
+  }
+  .more > summary::-webkit-details-marker{ display:none; }
+  .more > summary::before{
+    content:"+"; font-family:'IBM Plex Mono', monospace;
+    font-weight:700; color:var(--blue); font-size:1.1em;
+  }
+  .more[open] > summary::before{ content:"\2212"; } /* minus sign */
+  .more > summary:hover{ background:#e8e8e8; }
+  .more .more-inner{ padding:12px 14px; font-size:.95em; }
+  .more .more-inner p:first-child{ margin-top:0; }
+  .more .more-inner ul{ margin:8px 0; padding-left:20px; }
+  .more .more-inner li{ margin:5px 0; }
+
+  /* ---------- Callout / heads-up note ---------- */
+  .note{
+    background:var(--warn-bg); border-left:4px solid var(--warn-border);
+    padding:12px 16px; margin:18px 0; font-size:.95em;
+  }
+  .note b{ color:#684e00; }
+
+  .tip{
+    background:#e5f0ff; border-left:4px solid var(--blue);
+    padding:12px 16px; margin:18px 0; font-size:.95em;
+  }
+
+  /* ---------- Definition pills ---------- */
+  .deflist{ display:grid; gap:10px; margin:16px 0; }
+  .deflist .d{ border:1px solid var(--gray-line); padding:12px 14px; }
+  .deflist .d .term{ font-weight:600; color:var(--blue-dark); }
+
+  /* ---------- Table of contents ---------- */
+  nav.toc{
+    background:var(--gray-soft); border:1px solid var(--gray-line);
+    padding:18px 20px; margin:28px 0;
+  }
+  nav.toc h2{ border:none; margin:0 0 10px; padding:0; font-size:1.05rem; color:var(--ink); }
+  nav.toc ol{ margin:0; padding-left:22px; }
+  nav.toc li{ margin:6px 0; }
+  nav.toc a{ text-decoration:none; }
+  nav.toc a:hover{ text-decoration:underline; }
+
+  footer{
+    border-top:2px solid var(--ink); margin-top:60px; padding-top:20px;
+    color:var(--gray-mid); font-size:.85rem;
+  }
+
+  /* ---------- Mobile friendliness ---------- */
+  @media (max-width:600px){
+    header.hero h1{ font-size:1.6rem; }
+    h2{ font-size:1.25rem; }
+    .line{ grid-template-columns:34px 1fr; }
+    .sizer input[type=range]{ width:110px; }
+    .toolbar .brand{ width:100%; margin-bottom:4px; }
+    .wrap{ padding:0 14px 60px; }
+  }
+
+  /* Respect users who prefer less motion */
+  @media (prefers-reduced-motion:reduce){
+    html{ scroll-behavior:auto; }
+  }
+
+  /* Keyboard focus visibility (accessibility floor) */
+  a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visible{
+    outline:3px solid var(--blue); outline-offset:2px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== STICKY TOOLBAR + FONT SIZER ===================== -->
+<div class="toolbar">
+  <div class="brand">Terraform <span>&times;</span> AWS EKS &nbsp;·&nbsp; Beginner Guide</div>
+  <div class="sizer" role="group" aria-label="Text size controls">
+    <button type="button" id="decFont" aria-label="Make text smaller">A&minus;</button>
+    <input type="range" id="fontRange" min="14" max="36" step="1" value="18" aria-label="Text size slider, 14 to 36 pixels">
+    <button type="button" id="incFont" aria-label="Make text bigger">A+</button>
+    <span class="readout" id="fontReadout">18px</span>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- ===================== HERO ===================== -->
+  <header class="hero">
+    <p class="eyebrow">Infrastructure as Code · Step by step</p>
+    <h1>Building a Kubernetes cluster on AWS with Terraform</h1>
+    <p>This guide walks through a real Terraform file line by line. Every line gets a plain-English explanation of <b>what</b> it does, <b>why</b> it's there, <b>how</b> it works, and what your <b>options</b> are. Tap any &ldquo;<b>+ More info</b>&rdquo; box to dig deeper or jump to the official docs.</p>
+  </header>
+
+  <!-- ===================== BIG PICTURE ===================== -->
+  <h2><span class="num">00</span>The big picture (read this first)</h2>
+
+  <p>Imagine you want to set up a bunch of computers in the cloud. You <i>could</i> click around the Amazon website for an hour, creating each piece by hand. But if you ever need to do it again&mdash;or undo it&mdash;you'd have to remember every click.</p>
+
+  <p><b>Terraform</b> solves this. You write down what you want in a text file, and Terraform builds it for you. Change the file, and it updates things. Delete the file's resources, and it cleans everything up. This idea is called <b>Infrastructure as Code</b>: your cloud setup lives in a file you can save, share, and track.</p>
+
+  <div class="deflist">
+    <div class="d"><span class="term">AWS</span> — Amazon Web Services. A company that rents you computers, storage, and networking over the internet.</div>
+    <div class="d"><span class="term">Terraform</span> — A free tool (made by a company called HashiCorp) that reads your text file and builds cloud stuff to match.</div>
+    <div class="d"><span class="term">Kubernetes (K8s)</span> — A system that runs and manages lots of small app containers across many computers. Think of it as a traffic controller for your apps.</div>
+    <div class="d"><span class="term">EKS</span> — Elastic Kubernetes Service. Amazon's ready-made version of Kubernetes, so you don't have to build the hard parts yourself.</div>
+    <div class="d"><span class="term">VPC</span> — Virtual Private Cloud. Your own private network inside AWS where your computers live and talk to each other safely.</div>
+    <div class="d"><span class="term">Module</span> — A reusable bundle of Terraform code someone already wrote, so you don't start from zero.</div>
+  </div>
+
+  <div class="tip">
+    <b>What this file builds:</b> a private network (VPC), and inside it a small Kubernetes cluster (EKS) with one worker computer. By the end you'll have a place to run container apps on AWS.
+  </div>
+
+  <!-- ===================== TABLE OF CONTENTS ===================== -->
+  <nav class="toc" aria-label="Table of contents">
+    <h2>On this page</h2>
+    <ol>
+      <li><a href="#setup">First-time setup: install tools &amp; add AWS keys</a></li>
+      <li><a href="#terraform-block">The <code>terraform</code> block — versions &amp; providers</a></li>
+      <li><a href="#provider-block">The <code>provider</code> block — picking your region</a></li>
+      <li><a href="#vpc-module">The <code>vpc</code> module — building the network</a></li>
+      <li><a href="#eks-module">The <code>eks</code> module — building the cluster</a></li>
+      <li><a href="#run">Running it: the four commands</a></li>
+      <li><a href="#cleanup">Cleaning up so you don't get charged</a></li>
+    </ol>
+  </nav>
+
+  <!-- ===================== SECTION 1: SETUP ===================== -->
+  <h2 id="setup"><span class="num">01</span>First-time setup</h2>
+
+  <p>Before Terraform can build anything, two things need to be true: the tools are installed, and Terraform is allowed to log in to your AWS account. Let's do both.</p>
+
+  <h3>Step 1a — Install Terraform and the AWS CLI</h3>
+  <p>You need two free programs on your computer:</p>
+  <ul>
+    <li><b>Terraform</b> — the tool that reads your file and builds things.</li>
+    <li><b>AWS CLI</b> — a helper that stores your AWS login and lets tools talk to Amazon.</li>
+  </ul>
+
+  <details class="more">
+    <summary>More info: how to install them</summary>
+    <div class="more-inner">
+      <p>Follow the official instructions for your operating system (Windows, Mac, or Linux):</p>
+      <ul>
+        <li>Install Terraform: <a href="https://developer.hashicorp.com/terraform/install" target="_blank" rel="noopener">developer.hashicorp.com/terraform/install</a></li>
+        <li>Install the AWS CLI: <a href="https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html" target="_blank" rel="noopener">docs.aws.amazon.com — Install the AWS CLI</a></li>
+      </ul>
+      <p>After installing, open a terminal and check they work:</p>
+      <pre><span class="tok-com"># should print a version number like 1.x.x</span>
+terraform -version
+
+<span class="tok-com"># should also print a version number</span>
+aws --version</pre>
+      <p>As of this writing the newest Terraform is in the 1.x series, and your file only requires version 1.5 or higher, so any recent install is fine.</p>
+    </div>
+  </details>
+
+  <h3>Step 1b — Give Terraform your AWS keys (credentials)</h3>
+  <p>Terraform needs permission to act in your AWS account. The cleanest way is to store your keys with the AWS CLI <b>once</b>, and let Terraform borrow them automatically. Run this:</p>
+  <pre>aws configure</pre>
+  <p>It will ask you four questions. Type your answers:</p>
+  <pre>AWS Access Key ID     <span class="tok-com"># like a username (from the AWS Console)</span>
+AWS Secret Access Key <span class="tok-com"># like a password — keep it secret!</span>
+Default region name   <span class="tok-com"># for this guide type: us-east-1</span>
+Default output format  <span class="tok-com"># just press Enter, or type: json</span></pre>
+
+  <p>That's it. Terraform automatically reads these saved keys, so you never put passwords inside your <code>.tf</code> files.</p>
+
+  <div class="note">
+    <b>Heads up — never put keys in your code.</b> Don't paste your Access Key or Secret Key into the Terraform file. Anyone who sees the file (or your GitHub) could take over your account. The <code>aws configure</code> method keeps them in a safe, separate place.
+  </div>
+
+  <details class="more">
+    <summary>More info: where do I get the keys, and what are the safer options?</summary>
+    <div class="more-inner">
+      <p><b>Where keys come from:</b> in the AWS Console, your account's security page (IAM) lets you create an access key. Official guide: <a href="https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html" target="_blank" rel="noopener">Configuration &amp; credential file settings</a>.</p>
+      <p><b>The four ways to give Terraform credentials</b> (it checks them in order):</p>
+      <ul>
+        <li><b>Shared credentials file</b> — what <code>aws configure</code> creates. Easiest for learning.</li>
+        <li><b>Environment variables</b> — set <code>AWS_ACCESS_KEY_ID</code> and <code>AWS_SECRET_ACCESS_KEY</code> in your terminal. Popular for automated pipelines (CI/CD).</li>
+        <li><b>Named profiles</b> — keep several accounts side by side and pick one with <code>AWS_PROFILE=work</code>.</li>
+        <li><b>IAM roles / SSO</b> — the most secure for companies; no long-lived keys at all. Start with <code>aws configure sso</code>.</li>
+      </ul>
+      <p>Full provider auth reference: <a href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication-and-configuration" target="_blank" rel="noopener">AWS provider — Authentication and Configuration</a>.</p>
+    </div>
+  </details>
+
+  <h3>Step 1c — Put the code in a file</h3>
+  <p>Make a new folder, and inside it create a file named <code>main.tf</code>. Paste the whole configuration (shown section by section below) into that file. The <code>.tf</code> ending tells Terraform &ldquo;this is for you.&rdquo;</p>
+
+  <!-- ===================== SECTION 2: TERRAFORM BLOCK ===================== -->
+  <h2 id="terraform-block"><span class="num">02</span>The <code>terraform</code> block</h2>
+
+  <p>This first block is like the <b>settings page</b> for the whole project. It doesn't build anything in AWS. Instead it says: &ldquo;Which version of Terraform do I need, and which plugins (called <i>providers</i>) should I download?&rdquo;</p>
+
+  <pre><span class="tok-key">terraform</span> {
+  <span class="tok-key">required_version</span> = <span class="tok-str">"&gt;= 1.5"</span>
+  <span class="tok-key">required_providers</span> {
+    <span class="tok-key">aws</span> = {
+      <span class="tok-key">source</span>  = <span class="tok-str">"hashicorp/aws"</span>
+      <span class="tok-key">version</span> = <span class="tok-str">"~&gt; 6.0"</span>
+    }
+  }
+}</pre>
+
+  <div class="lines">
+    <div class="line">
+      <div class="ln">1</div>
+      <div class="body">
+        <span class="codeline">terraform {</span>
+        <p class="what"><b>What:</b> opens the settings block. <b>Why:</b> every project needs one place to declare its requirements. <b>How:</b> the <code>{ }</code> braces hold everything that belongs to these settings. <b>Options:</b> there's only one <code>terraform</code> block per project.</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">2</div>
+      <div class="body">
+        <span class="codeline">  required_version = "&gt;= 1.5"</span>
+        <p class="what"><b>What:</b> says you need Terraform version 1.5 or newer. <b>Why:</b> older versions might not understand newer features, so this prevents confusing errors. <b>How:</b> <code>&gt;=</code> means &ldquo;greater than or equal to.&rdquo; <b>Options:</b> you could pin tighter, e.g. <code>~&gt; 1.5</code> (allow 1.5.x but not 2.0).</p>
+        <details class="more">
+          <summary>More info: what do the version symbols mean?</summary>
+          <div class="more-inner">
+            <ul>
+              <li><code>&gt;= 1.5</code> — this version or anything higher.</li>
+              <li><code>~&gt; 1.5</code> — &ldquo;pessimistic&rdquo; constraint: allow 1.5, 1.6, 1.7&hellip; but <i>not</i> 2.0. It lets in small updates but blocks big, possibly-breaking ones.</li>
+              <li><code>= 1.5.7</code> — exactly that version, nothing else.</li>
+            </ul>
+            <p>Docs: <a href="https://developer.hashicorp.com/terraform/language/expressions/version-constraints" target="_blank" rel="noopener">Version Constraints</a>.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">3</div>
+      <div class="body">
+        <span class="codeline">  required_providers {</span>
+        <p class="what"><b>What:</b> opens the list of plugins to download. <b>Why:</b> Terraform itself doesn't know how to talk to AWS&mdash;it needs the AWS <i>provider</i> plugin. <b>How:</b> each plugin gets a nickname and details inside this block. <b>Options:</b> you can list many providers here (AWS, Google Cloud, GitHub, etc.).</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">4</div>
+      <div class="body">
+        <span class="codeline">    aws = {</span>
+        <p class="what"><b>What:</b> gives the AWS provider the local nickname <code>aws</code>. <b>Why:</b> later code refers to it by this short name. <b>How:</b> the nickname is what you'll type in the <code>provider "aws"</code> block. <b>Options:</b> the nickname is usually left as <code>aws</code> by convention.</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">5</div>
+      <div class="body">
+        <span class="codeline">      source  = "hashicorp/aws"</span>
+        <p class="what"><b>What:</b> the official address of the plugin in Terraform's online registry. <b>Why:</b> tells Terraform exactly which plugin to fetch (there are many). <b>How:</b> it reads as <code>publisher/name</code>. <b>Options:</b> almost always <code>hashicorp/aws</code> for AWS.</p>
+        <details class="more">
+          <summary>More info: see the AWS provider page</summary>
+          <div class="more-inner">
+            <p>The provider is published here, with full documentation of every resource it can build:</p>
+            <p><a href="https://registry.terraform.io/providers/hashicorp/aws/latest" target="_blank" rel="noopener">registry.terraform.io — hashicorp/aws (latest)</a></p>
+            <p>It's maintained by HashiCorp together with AWS and is one of the most-used providers in the world.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">6</div>
+      <div class="body">
+        <span class="codeline">      version = "~&gt; 6.0"</span>
+        <p class="what"><b>What:</b> asks for AWS provider version 6.x. <b>Why:</b> version 6 has features and fixes the modules below expect. <b>How:</b> <code>~&gt; 6.0</code> allows 6.1, 6.2&hellip; but blocks 7.0. <b>Options:</b> you could widen or tighten this, but pinning protects you from surprise breaking changes.</p>
+        <details class="more">
+          <summary>More info: why version 6 specifically?</summary>
+          <div class="more-inner">
+            <p>AWS provider 6.0 was a <b>major</b> release with breaking changes (some old settings were removed or renamed). Pinning to <code>~&gt; 6.0</code> means you stay on the 6 line and won't accidentally jump to a future 7.0 that could break your file.</p>
+            <p>Upgrade notes: <a href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs/guides/version-6-upgrade" target="_blank" rel="noopener">AWS Provider Version 6 Upgrade Guide</a>.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">7–9</div>
+      <div class="body">
+        <span class="codeline">    }
+  }
+}</span>
+        <p class="what"><b>What:</b> three closing braces. <b>Why:</b> every <code>{</code> must be matched by a <code>}</code>&mdash;these close the <code>aws</code> block, the <code>required_providers</code> block, and the <code>terraform</code> block, in that order. <b>How:</b> indentation helps you see which brace closes which block. <b>Options:</b> none&mdash;the braces are required.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== SECTION 3: PROVIDER BLOCK ===================== -->
+  <h2 id="provider-block"><span class="num">03</span>The <code>provider</code> block</h2>
+
+  <p>Now we <i>configure</i> the AWS plugin we just downloaded. The main thing it needs is a <b>region</b>&mdash;which part of the world your computers should live in.</p>
+
+  <pre><span class="tok-key">provider</span> <span class="tok-str">"aws"</span> {
+  <span class="tok-key">region</span> = <span class="tok-str">"us-east-1"</span>
+}</pre>
+
+  <div class="lines">
+    <div class="line">
+      <div class="ln">1</div>
+      <div class="body">
+        <span class="codeline">provider "aws" {</span>
+        <p class="what"><b>What:</b> starts configuring the provider nicknamed <code>aws</code>. <b>Why:</b> the plugin needs to know <i>how</i> to behave (which region, which account). <b>How:</b> the name in quotes matches the nickname from the <code>terraform</code> block. <b>Options:</b> you can have more than one AWS provider for different regions using <code>alias</code>.</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">2</div>
+      <div class="body">
+        <span class="codeline">  region = "us-east-1"</span>
+        <p class="what"><b>What:</b> builds everything in the US East (Northern Virginia) region. <b>Why:</b> AWS is split into regions worldwide; you must pick one. <code>us-east-1</code> is the biggest and a common default. <b>How:</b> AWS resources are tied to a region. <b>Options:</b> any region code, e.g. <code>us-west-2</code> (Oregon), <code>eu-west-1</code> (Ireland), <code>ap-south-1</code> (Mumbai).</p>
+        <details class="more">
+          <summary>More info: how do I choose a region?</summary>
+          <div class="more-inner">
+            <p>Pick the region <b>closest to your users</b> for speed, or one that's cheaper for your budget. Prices and available services differ slightly by region.</p>
+            <ul>
+              <li>List of all regions &amp; codes: <a href="https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html" target="_blank" rel="noopener">AWS Regions and Availability Zones</a></li>
+              <li>Provider config reference: <a href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs" target="_blank" rel="noopener">hashicorp/aws — Documentation</a></li>
+            </ul>
+            <p>Note: you don't write your secret keys here. The provider quietly uses the keys you saved with <code>aws configure</code> in Step 1b.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">3</div>
+      <div class="body">
+        <span class="codeline">}</span>
+        <p class="what"><b>What:</b> closes the provider block. <b>Why &amp; how:</b> matches the opening brace on line 1. <b>Options:</b> none.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== SECTION 4: VPC MODULE ===================== -->
+  <h2 id="vpc-module"><span class="num">04</span>The <code>vpc</code> module — your private network</h2>
+
+  <p>Before computers can run, they need a <b>network</b> to live in. Building a network by hand means creating subnets, route tables, gateways, and more&mdash;dozens of pieces. Instead, we use a ready-made <b>module</b> that does all of it from a few simple settings.</p>
+
+  <pre><span class="tok-key">module</span> <span class="tok-str">"vpc"</span> {
+  <span class="tok-key">source</span>  = <span class="tok-str">"terraform-aws-modules/vpc/aws"</span>
+  <span class="tok-key">version</span> = <span class="tok-str">"~&gt; 5.0"</span>
+
+  <span class="tok-key">name</span> = <span class="tok-str">"eks-vpc"</span>
+  <span class="tok-key">cidr</span> = <span class="tok-str">"10.0.0.0/16"</span>
+
+  <span class="tok-key">azs</span>             = [<span class="tok-str">"us-east-1a"</span>, <span class="tok-str">"us-east-1b"</span>]
+  <span class="tok-key">public_subnets</span>  = [<span class="tok-str">"10.0.101.0/24"</span>, <span class="tok-str">"10.0.102.0/24"</span>]
+
+  <span class="tok-key">enable_nat_gateway</span> = <span class="tok-num">false</span>
+
+  <span class="tok-key">tags</span> = {
+    <span class="tok-key">Terraform</span>   = <span class="tok-str">"true"</span>
+    <span class="tok-key">Environment</span> = <span class="tok-str">"dev"</span>
+  }
+}</pre>
+
+  <div class="lines">
+    <div class="line">
+      <div class="ln">1</div>
+      <div class="body">
+        <span class="codeline">module "vpc" {</span>
+        <p class="what"><b>What:</b> starts using a module and names this copy <code>vpc</code>. <b>Why:</b> the name lets other code grab its results later (you'll see <code>module.vpc.vpc_id</code> in the EKS section). <b>How:</b> <code>module</code> is the keyword; the quoted text is your label. <b>Options:</b> you can name it anything, e.g. <code>network</code>.</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">2</div>
+      <div class="body">
+        <span class="codeline">  source  = "terraform-aws-modules/vpc/aws"</span>
+        <p class="what"><b>What:</b> where to download the module from. <b>Why:</b> this is the most popular community VPC module&mdash;well-tested and saves ~200 lines of code. <b>How:</b> Terraform fetches it from the public registry. <b>Options:</b> you could write your own VPC from scratch, or use a different module.</p>
+        <details class="more">
+          <summary>More info: see the VPC module</summary>
+          <div class="more-inner">
+            <p>This is the most-downloaded module on the registry. It builds the VPC, subnets, route tables, internet gateway, and (optionally) NAT gateways for you.</p>
+            <p><a href="https://registry.terraform.io/modules/terraform-aws-modules/vpc/aws/latest" target="_blank" rel="noopener">registry.terraform.io — terraform-aws-modules/vpc/aws</a></p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">3</div>
+      <div class="body">
+        <span class="codeline">  version = "~&gt; 5.0"</span>
+        <p class="what"><b>What:</b> use version 5.x of the VPC module. <b>Why:</b> pinning keeps your build repeatable&mdash;the same version always behaves the same way. <b>How:</b> <code>~&gt; 5.0</code> allows 5.1, 5.2&hellip; but not 6.0. <b>Options:</b> a newer 6.x line exists; see the note below.</p>
+        <div class="note">
+          <b>Good to know:</b> the VPC module now has a <b>6.x</b> series available too. <code>~&gt; 5.0</code> is still perfectly fine and stable for learning. If you later move to 6.x, read its changelog first, because major version jumps can rename settings.
+        </div>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">4</div>
+      <div class="body">
+        <span class="codeline">  name = "eks-vpc"</span>
+        <p class="what"><b>What:</b> names your network &ldquo;eks-vpc.&rdquo; <b>Why:</b> makes it easy to spot in the AWS Console among other resources. <b>How:</b> the module uses this name as a prefix on the things it creates. <b>Options:</b> any short, descriptive name.</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">5</div>
+      <div class="body">
+        <span class="codeline">  cidr = "10.0.0.0/16"</span>
+        <p class="what"><b>What:</b> the range of private IP addresses your network owns. <b>Why:</b> every device needs an address; this reserves a big pool. <b>How:</b> <code>/16</code> gives you ~65,000 addresses (10.0.0.0 through 10.0.255.255). <b>Options:</b> common private ranges are <code>10.0.0.0/16</code>, <code>172.16.0.0/16</code>, or <code>192.168.0.0/16</code>.</p>
+        <details class="more">
+          <summary>More info: what is CIDR / what does "/16" mean?</summary>
+          <div class="more-inner">
+            <p>CIDR is just a compact way to describe a block of IP addresses. The number after the slash says how many addresses are in the block&mdash;<b>smaller number = bigger block</b>.</p>
+            <ul>
+              <li><code>/16</code> &rarr; ~65,536 addresses (a large network)</li>
+              <li><code>/24</code> &rarr; 256 addresses (a small slice, used for subnets below)</li>
+            </ul>
+            <p>Background reading: <a href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-cidr-blocks.html" target="_blank" rel="noopener">VPC CIDR blocks (AWS docs)</a>.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">6</div>
+      <div class="body">
+        <span class="codeline">  azs = ["us-east-1a", "us-east-1b"]</span>
+        <p class="what"><b>What:</b> picks two <i>Availability Zones</i> (separate data centers) in the region. <b>Why:</b> spreading across two means if one building has a problem, your cluster can keep running. <b>How:</b> the square brackets <code>[ ]</code> make a <i>list</i>. <b>Options:</b> you can list more zones, like adding <code>"us-east-1c"</code>.</p>
+        <details class="more">
+          <summary>More info: what's an Availability Zone?</summary>
+          <div class="more-inner">
+            <p>A region (like <code>us-east-1</code>) is made of several Availability Zones&mdash;physically separate data centers a few miles apart. Using two or more is how you make things <b>fault-tolerant</b>: a fire, flood, or power loss in one zone won't take down everything.</p>
+            <p>Docs: <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html" target="_blank" rel="noopener">Regions and Availability Zones</a>.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">7</div>
+      <div class="body">
+        <span class="codeline">  public_subnets = ["10.0.101.0/24", "10.0.102.0/24"]</span>
+        <p class="what"><b>What:</b> two small address slices, one per zone, that can reach the internet. <b>Why:</b> &ldquo;public&rdquo; subnets let your cluster be reached from outside (handy for learning). <b>How:</b> each <code>/24</code> is 256 addresses carved out of the big <code>/16</code>. <b>Options:</b> you'd usually also add <code>private_subnets</code> for things that should stay hidden.</p>
+        <details class="more">
+          <summary>More info: public vs private subnets</summary>
+          <div class="more-inner">
+            <ul>
+              <li><b>Public subnet</b> — has a route to the internet through an Internet Gateway. Good for things people connect to.</li>
+              <li><b>Private subnet</b> — no direct internet route. Good for databases and back-end servers you want to keep hidden.</li>
+            </ul>
+            <p>For real production clusters, worker nodes usually go in <b>private</b> subnets for safety. This guide uses public subnets to keep the setup simple and cheap.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">8</div>
+      <div class="body">
+        <span class="codeline">  enable_nat_gateway = false</span>
+        <p class="what"><b>What:</b> turns <i>off</i> the NAT gateway. <b>Why:</b> a NAT gateway lets private subnets reach the internet&mdash;but it costs money every hour. We skip it to stay (almost) free. <b>How:</b> <code>false</code> means &ldquo;don't create it.&rdquo; <b>Options:</b> set to <code>true</code> if you add private subnets that need outbound internet.</p>
+        <details class="more">
+          <summary>More info: what is a NAT gateway and why does it cost money?</summary>
+          <div class="more-inner">
+            <p>A <b>NAT gateway</b> is like a one-way door: machines in a <i>private</i> subnet can reach out to the internet (to download updates, say), but the internet can't start a connection back in. It's great for security, but AWS charges an hourly fee <i>plus</i> data fees.</p>
+            <p>Since this guide only uses public subnets, we don't need one&mdash;so we set it to <code>false</code> and save money.</p>
+            <p>Pricing detail: <a href="https://aws.amazon.com/vpc/pricing/" target="_blank" rel="noopener">Amazon VPC pricing</a>.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">9–12</div>
+      <div class="body">
+        <span class="codeline">  tags = {
+    Terraform   = "true"
+    Environment = "dev"
+  }</span>
+        <p class="what"><b>What:</b> sticky labels attached to everything the module makes. <b>Why:</b> tags help you sort, find, and track costs later. <b>How:</b> each line is a <code>Key = "Value"</code> pair. <b>Options:</b> add any tags you like, e.g. <code>Owner = "Sam"</code> or <code>Team = "platform"</code>.</p>
+        <details class="more">
+          <summary>More info: why tagging matters</summary>
+          <div class="more-inner">
+            <p>Tags are free metadata. Teams use them to answer questions like &ldquo;which resources belong to the dev environment?&rdquo; or &ldquo;how much is the marketing project costing us?&rdquo; The AWS billing tools can group costs by tag.</p>
+            <p>Best practices: <a href="https://docs.aws.amazon.com/whitepapers/latest/tagging-best-practices/tagging-best-practices.html" target="_blank" rel="noopener">AWS Tagging Best Practices</a>.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">13</div>
+      <div class="body">
+        <span class="codeline">}</span>
+        <p class="what"><b>What:</b> closes the VPC module block. <b>Why &amp; how:</b> matches the opening brace on line 1.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== SECTION 5: EKS MODULE ===================== -->
+  <h2 id="eks-module"><span class="num">05</span>The <code>eks</code> module — your Kubernetes cluster</h2>
+
+  <p>This is the main event. Building a Kubernetes cluster by hand is genuinely hard&mdash;there's a control plane, worker computers, security roles, networking add-ons, and more. The EKS module wires it all together from a handful of settings, and plugs straight into the VPC you just built.</p>
+
+  <pre><span class="tok-key">module</span> <span class="tok-str">"eks"</span> {
+  <span class="tok-key">source</span>  = <span class="tok-str">"terraform-aws-modules/eks/aws"</span>
+  <span class="tok-key">version</span> = <span class="tok-str">"~&gt; 21.0"</span>
+
+  <span class="tok-key">cluster_name</span>    = <span class="tok-str">"basic-eks"</span>
+  <span class="tok-key">cluster_version</span> = <span class="tok-str">"1.33"</span>
+
+  <span class="tok-key">vpc_id</span>     = module.vpc.vpc_id
+  <span class="tok-key">subnet_ids</span> = module.vpc.public_subnets
+
+  <span class="tok-key">cluster_endpoint_public_access</span> = <span class="tok-num">true</span>
+  <span class="tok-key">enable_cluster_creator_admin_permissions</span> = <span class="tok-num">true</span>
+
+  <span class="tok-key">eks_managed_node_groups</span> = {
+    <span class="tok-key">default</span> = {
+      <span class="tok-key">instance_types</span> = [<span class="tok-str">"t3.small"</span>]
+      <span class="tok-key">min_size</span>       = <span class="tok-num">1</span>
+      <span class="tok-key">max_size</span>       = <span class="tok-num">2</span>
+      <span class="tok-key">desired_size</span>   = <span class="tok-num">1</span>
+    }
+  }
+
+  <span class="tok-key">cluster_addons</span> = {
+    <span class="tok-key">coredns</span>    = {}
+    <span class="tok-key">kube-proxy</span> = {}
+    <span class="tok-key">vpc-cni</span>    = {}
+  }
+
+  <span class="tok-key">tags</span> = {
+    <span class="tok-key">Environment</span> = <span class="tok-str">"dev"</span>
+    <span class="tok-key">Terraform</span>   = <span class="tok-str">"true"</span>
+  }
+}</pre>
+
+  <div class="note">
+    <b>Important version heads-up.</b> You pinned the EKS module to <code>~&gt; 21.0</code>, which is the newest line. In version 21, several setting names were <b>renamed</b> from older guides you might see online. The line-by-line notes below flag each one. If <code>terraform plan</code> complains that an argument is &ldquo;unsupported,&rdquo; this is almost always why.
+  </div>
+
+  <div class="lines">
+    <div class="line">
+      <div class="ln">1</div>
+      <div class="body">
+        <span class="codeline">module "eks" {</span>
+        <p class="what"><b>What:</b> starts the EKS module and names it <code>eks</code>. <b>Why:</b> groups all cluster settings together. <b>How:</b> same <code>module</code> keyword as before. <b>Options:</b> rename the label if you like.</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">2</div>
+      <div class="body">
+        <span class="codeline">  source  = "terraform-aws-modules/eks/aws"</span>
+        <p class="what"><b>What:</b> download the popular community EKS module. <b>Why:</b> it handles the genuinely hard parts of EKS for you. <b>How:</b> fetched from the public registry. <b>Options:</b> other EKS modules exist, but this is the standard choice.</p>
+        <details class="more">
+          <summary>More info: see the EKS module &amp; examples</summary>
+          <div class="more-inner">
+            <p>Full documentation, inputs, outputs, and ready-to-copy examples:</p>
+            <p><a href="https://registry.terraform.io/modules/terraform-aws-modules/eks/aws/latest" target="_blank" rel="noopener">registry.terraform.io — terraform-aws-modules/eks/aws</a></p>
+            <p>Source &amp; changelog: <a href="https://github.com/terraform-aws-modules/terraform-aws-eks" target="_blank" rel="noopener">github.com/terraform-aws-modules/terraform-aws-eks</a></p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">3</div>
+      <div class="body">
+        <span class="codeline">  version = "~&gt; 21.0"</span>
+        <p class="what"><b>What:</b> use version 21.x of the EKS module. <b>Why:</b> 21 is the current major line with the latest features. <b>How:</b> allows 21.1, 21.2&hellip; not 22.0. <b>Options:</b> older lines (18, 19, 20) used different setting names&mdash;don't mix examples across versions.</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">4</div>
+      <div class="body">
+        <span class="codeline">  cluster_name    = "basic-eks"</span>
+        <p class="what"><b>What:</b> names the cluster &ldquo;basic-eks.&rdquo; <b>Why:</b> you'll use this name to connect to it later. <b>How:</b> shows up in the AWS Console and in your <code>kubectl</code> config. <b>Options:</b> any name you like.</p>
+        <div class="note">
+          <b>v21 rename:</b> in module version 21 this input is now called <code>name</code> (not <code>cluster_name</code>). The old name may still work for now but can warn or break. The safe v21 line is:
+          <pre style="margin-top:8px"><span class="tok-key">name</span> = <span class="tok-str">"basic-eks"</span></pre>
+        </div>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">5</div>
+      <div class="body">
+        <span class="codeline">  cluster_version = "1.33"</span>
+        <p class="what"><b>What:</b> the Kubernetes version to run. <b>Why:</b> Kubernetes releases new versions a few times a year; you pick one AWS supports. <b>How:</b> EKS installs that version of the control plane. <b>Options:</b> AWS supports a rolling window of versions; 1.33 is a current one.</p>
+        <div class="note">
+          <b>v21 rename:</b> in module version 21 this input is now <code>kubernetes_version</code> (not <code>cluster_version</code>). The safe v21 line is:
+          <pre style="margin-top:8px"><span class="tok-key">kubernetes_version</span> = <span class="tok-str">"1.33"</span></pre>
+        </div>
+        <details class="more">
+          <summary>More info: which Kubernetes versions can I pick?</summary>
+          <div class="more-inner">
+            <p>AWS supports several versions at once and retires old ones on a schedule. Check what's currently supported before choosing:</p>
+            <ul>
+              <li><a href="https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions.html" target="_blank" rel="noopener">EKS Kubernetes version lifecycle</a></li>
+              <li><a href="https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions-standard.html" target="_blank" rel="noopener">EKS version release notes</a></li>
+            </ul>
+            <p>Tip: don't pick a version that's about to lose support, or you'll have to upgrade again soon.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">6</div>
+      <div class="body">
+        <span class="codeline">  vpc_id = module.vpc.vpc_id</span>
+        <p class="what"><b>What:</b> tells the cluster which network to use&mdash;the one the VPC module built. <b>Why:</b> the cluster must live inside a VPC. <b>How:</b> <code>module.vpc.vpc_id</code> reads the <code>vpc_id</code> <i>output</i> from your VPC module. This is how modules connect. <b>Options:</b> you could point at an existing VPC's ID instead.</p>
+        <details class="more">
+          <summary>More info: how does one module use another's result?</summary>
+          <div class="more-inner">
+            <p>Modules can <b>output</b> values&mdash;facts about what they built. The VPC module outputs things like <code>vpc_id</code> and <code>public_subnets</code>. You read them with the pattern <code>module.&lt;name&gt;.&lt;output&gt;</code>.</p>
+            <p>Terraform also notices this link and automatically builds the VPC <i>before</i> the cluster, since the cluster depends on it. That automatic ordering is one of Terraform's best features.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">7</div>
+      <div class="body">
+        <span class="codeline">  subnet_ids = module.vpc.public_subnets</span>
+        <p class="what"><b>What:</b> which subnets the cluster's computers go in. <b>Why:</b> the worker computers need somewhere to live inside the VPC. <b>How:</b> reads the list of public subnet IDs the VPC module made. <b>Options:</b> in production you'd usually pass <code>private_subnets</code> here instead, for safety.</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">8</div>
+      <div class="body">
+        <span class="codeline">  cluster_endpoint_public_access = true</span>
+        <p class="what"><b>What:</b> lets you reach the cluster's control panel (API) from the internet. <b>Why:</b> makes it easy to run <code>kubectl</code> from your laptop while learning. <b>How:</b> <code>true</code> opens a public address for the API. <b>Options:</b> set to <code>false</code> for private-only access (more secure, but harder to reach).</p>
+        <div class="note">
+          <b>v21 rename:</b> in module version 21 this is now <code>endpoint_public_access</code> (the <code>cluster_</code> prefix was dropped). The safe v21 line is:
+          <pre style="margin-top:8px"><span class="tok-key">endpoint_public_access</span> = <span class="tok-num">true</span></pre>
+        </div>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">9</div>
+      <div class="body">
+        <span class="codeline">  enable_cluster_creator_admin_permissions = true</span>
+        <p class="what"><b>What:</b> makes <i>you</i> (the person running Terraform) a full admin of the cluster. <b>Why:</b> without this you'd build a cluster you can't actually manage. <b>How:</b> it adds your AWS identity as an administrator automatically. <b>Options:</b> set to <code>false</code> if you'll grant access another way.</p>
+        <details class="more">
+          <summary>More info: why would this ever be off?</summary>
+          <div class="more-inner">
+            <p>In bigger teams, access is often managed centrally with a fixed list of users and roles (called <i>access entries</i>) rather than &ldquo;whoever ran Terraform.&rdquo; For a solo learner, <code>true</code> is exactly what you want&mdash;it saves a frustrating &ldquo;you are not authorized&rdquo; error.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">10</div>
+      <div class="body">
+        <span class="codeline">  eks_managed_node_groups = {</span>
+        <p class="what"><b>What:</b> starts describing your <i>worker computers</i>. <b>Why:</b> the control plane is the brain, but you need actual machines to run apps&mdash;these are them. <b>How:</b> &ldquo;managed&rdquo; means AWS handles patching and replacing them. <b>Options:</b> you can define several groups with different machine types.</p>
+        <details class="more">
+          <summary>More info: control plane vs worker nodes</summary>
+          <div class="more-inner">
+            <ul>
+              <li><b>Control plane</b> — the &ldquo;brain&rdquo; that schedules and tracks everything. EKS runs and maintains this for you.</li>
+              <li><b>Worker nodes</b> — the actual computers (EC2 instances) where your containers run. You choose how many and how powerful.</li>
+            </ul>
+            <p>A <b>managed node group</b> means AWS does the boring upkeep (security patches, replacing broken machines). Docs: <a href="https://docs.aws.amazon.com/eks/latest/userguide/managed-node-groups.html" target="_blank" rel="noopener">Managed node groups</a>.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">11</div>
+      <div class="body">
+        <span class="codeline">    default = {</span>
+        <p class="what"><b>What:</b> names this group of workers &ldquo;default.&rdquo; <b>Why:</b> a label so you can have more than one group. <b>How:</b> the settings inside <code>{ }</code> describe this group. <b>Options:</b> name it anything, e.g. <code>general</code> or <code>spot-workers</code>.</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">12</div>
+      <div class="body">
+        <span class="codeline">      instance_types = ["t3.small"]</span>
+        <p class="what"><b>What:</b> the size/power of each worker computer. <b>Why:</b> <code>t3.small</code> is small and cheap&mdash;fine for testing. <b>How:</b> AWS launches EC2 machines of this type. <b>Options:</b> bigger types like <code>t3.medium</code> or <code>m5.large</code> for more power (and more cost).</p>
+        <details class="more">
+          <summary>More info: how do I read "t3.small"?</summary>
+          <div class="more-inner">
+            <p>AWS instance types follow a pattern: a <b>family</b> letter (t, m, c, r&hellip;), a <b>generation</b> number, and a <b>size</b> (nano, micro, small, medium, large&hellip;). The <code>t</code> family is &ldquo;burstable&rdquo;&mdash;cheap, good for light or bursty work.</p>
+            <p>Full list &amp; specs: <a href="https://aws.amazon.com/ec2/instance-types/" target="_blank" rel="noopener">Amazon EC2 Instance Types</a>.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">13</div>
+      <div class="body">
+        <span class="codeline">      min_size = 1</span>
+        <p class="what"><b>What:</b> never run fewer than 1 worker. <b>Why:</b> a floor so your cluster always has at least one machine. <b>How:</b> autoscaling won't shrink below this. <b>Options:</b> any whole number; <code>0</code> would allow scaling all the way down.</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">14</div>
+      <div class="body">
+        <span class="codeline">      max_size = 2</span>
+        <p class="what"><b>What:</b> never run more than 2 workers. <b>Why:</b> a ceiling that protects you from runaway costs. <b>How:</b> autoscaling won't grow past this. <b>Options:</b> raise it if your apps need to scale out more.</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">15</div>
+      <div class="body">
+        <span class="codeline">      desired_size = 1</span>
+        <p class="what"><b>What:</b> start with exactly 1 worker. <b>Why:</b> the normal &ldquo;target&rdquo; number to run right now. <b>How:</b> EKS launches this many at first, between the min and max. <b>Options:</b> set higher to start with more capacity.</p>
+        <details class="more">
+          <summary>More info: how do min / desired / max work together?</summary>
+          <div class="more-inner">
+            <p>Think of a thermostat. <b>Desired</b> is the temperature you set right now. <b>Min</b> and <b>max</b> are the limits it's never allowed to go past. If you later turn on autoscaling, the cluster can add or remove workers automatically&mdash;but always staying between min and max.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">16–17</div>
+      <div class="body">
+        <span class="codeline">    }
+  }</span>
+        <p class="what"><b>What:</b> closes the <code>default</code> group, then the <code>eks_managed_node_groups</code> block. <b>Why &amp; how:</b> matching braces for the two blocks opened on lines 11 and 10.</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">18</div>
+      <div class="body">
+        <span class="codeline">  cluster_addons = {</span>
+        <p class="what"><b>What:</b> starts a list of official EKS &ldquo;add-ons&rdquo; to install. <b>Why:</b> a cluster needs a few core helpers to actually function. <b>How:</b> EKS installs and maintains each one for you. <b>Options:</b> there are more add-ons (like the EBS storage driver) you can add.</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">19</div>
+      <div class="body">
+        <span class="codeline">    coredns = {}</span>
+        <p class="what"><b>What:</b> installs CoreDNS. <b>Why:</b> it's the cluster's internal phone book&mdash;it lets apps find each other by name. <b>How:</b> empty <code>{}</code> means &ldquo;use the default settings.&rdquo; <b>Options:</b> you can pin a specific add-on version inside the braces.</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">20</div>
+      <div class="body">
+        <span class="codeline">    kube-proxy = {}</span>
+        <p class="what"><b>What:</b> installs kube-proxy. <b>Why:</b> it handles networking rules so traffic reaches the right container. <b>How:</b> defaults again via <code>{}</code>. <b>Options:</b> same&mdash;can pin a version.</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">21</div>
+      <div class="body">
+        <span class="codeline">    vpc-cni = {}</span>
+        <p class="what"><b>What:</b> installs the VPC CNI plugin. <b>Why:</b> it gives each container a real address from your VPC so it fits into your network. <b>How:</b> defaults via <code>{}</code>. <b>Options:</b> advanced networking settings can go inside.</p>
+        <details class="more">
+          <summary>More info: what are these three add-ons, simply?</summary>
+          <div class="more-inner">
+            <ul>
+              <li><b>CoreDNS</b> — the cluster's name lookup. &ldquo;Where is the database service?&rdquo; &rarr; it answers with an address.</li>
+              <li><b>kube-proxy</b> — sets up the routing rules so requests land on the right container.</li>
+              <li><b>VPC CNI</b> — hands out network addresses to containers from your VPC's pool.</li>
+            </ul>
+            <p>These three are the standard baseline for a working EKS cluster. Docs: <a href="https://docs.aws.amazon.com/eks/latest/userguide/eks-add-ons.html" target="_blank" rel="noopener">Amazon EKS add-ons</a>.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">22</div>
+      <div class="body">
+        <span class="codeline">  }</span>
+        <p class="what"><b>What:</b> closes the <code>cluster_addons</code> block. <b>Why &amp; how:</b> matches the brace opened on line 18.</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">23–26</div>
+      <div class="body">
+        <span class="codeline">  tags = {
+    Environment = "dev"
+    Terraform   = "true"
+  }</span>
+        <p class="what"><b>What:</b> labels for the cluster's resources. <b>Why:</b> same reason as the VPC tags&mdash;sorting and cost tracking. <b>How:</b> <code>Key = "Value"</code> pairs. <b>Options:</b> add any tags your team uses.</p>
+      </div>
+    </div>
+    <div class="line">
+      <div class="ln">27</div>
+      <div class="body">
+        <span class="codeline">}</span>
+        <p class="what"><b>What:</b> closes the EKS module block&mdash;the end of the file. <b>Why &amp; how:</b> matches the opening brace on line 1.</p>
+      </div>
+    </div>
+  </div>
+
+  <details class="more" style="margin-top:24px">
+    <summary>Copy the v21-correct version of the EKS block</summary>
+    <div class="more-inner">
+      <p>Here's the same block with the three renamed inputs updated for module version 21, so it won't throw &ldquo;unsupported argument&rdquo; errors:</p>
+      <pre><span class="tok-key">module</span> <span class="tok-str">"eks"</span> {
+  <span class="tok-key">source</span>  = <span class="tok-str">"terraform-aws-modules/eks/aws"</span>
+  <span class="tok-key">version</span> = <span class="tok-str">"~&gt; 21.0"</span>
+
+  <span class="tok-key">name</span>               = <span class="tok-str">"basic-eks"</span>   <span class="tok-com"># was cluster_name</span>
+  <span class="tok-key">kubernetes_version</span> = <span class="tok-str">"1.33"</span>       <span class="tok-com"># was cluster_version</span>
+
+  <span class="tok-key">vpc_id</span>     = module.vpc.vpc_id
+  <span class="tok-key">subnet_ids</span> = module.vpc.public_subnets
+
+  <span class="tok-key">endpoint_public_access</span> = <span class="tok-num">true</span>       <span class="tok-com"># was cluster_endpoint_public_access</span>
+  <span class="tok-key">enable_cluster_creator_admin_permissions</span> = <span class="tok-num">true</span>
+
+  <span class="tok-key">eks_managed_node_groups</span> = {
+    <span class="tok-key">default</span> = {
+      <span class="tok-key">instance_types</span> = [<span class="tok-str">"t3.small"</span>]
+      <span class="tok-key">min_size</span>       = <span class="tok-num">1</span>
+      <span class="tok-key">max_size</span>       = <span class="tok-num">2</span>
+      <span class="tok-key">desired_size</span>   = <span class="tok-num">1</span>
+    }
+  }
+
+  <span class="tok-key">cluster_addons</span> = {
+    <span class="tok-key">coredns</span>    = {}
+    <span class="tok-key">kube-proxy</span> = {}
+    <span class="tok-key">vpc-cni</span>    = {}
+  }
+
+  <span class="tok-key">tags</span> = {
+    <span class="tok-key">Environment</span> = <span class="tok-str">"dev"</span>
+    <span class="tok-key">Terraform</span>   = <span class="tok-str">"true"</span>
+  }
+}</pre>
+      <p>Always confirm the exact current input names on the module's registry page before a real deployment: <a href="https://registry.terraform.io/modules/terraform-aws-modules/eks/aws/latest" target="_blank" rel="noopener">EKS module — latest docs</a>.</p>
+    </div>
+  </details>
+
+  <!-- ===================== SECTION 6: RUN ===================== -->
+  <h2 id="run"><span class="num">06</span>Running it: the four commands</h2>
+
+  <p>With the file saved and your keys configured, open a terminal <b>in the folder that holds <code>main.tf</code></b> and run these in order.</p>
+
+  <h3>1. Initialize</h3>
+  <pre>terraform init</pre>
+  <p><b>What it does:</b> downloads the AWS provider and the two modules. <b>When:</b> run it once at the start, and again any time you change versions. <b>Think of it as:</b> &ldquo;get all the parts I'm going to need.&rdquo;</p>
+
+  <h3>2. Preview the plan</h3>
+  <pre>terraform plan</pre>
+  <p><b>What it does:</b> shows you exactly what Terraform <i>would</i> create, change, or destroy&mdash;without doing anything yet. <b>Why it's great:</b> you catch mistakes before they happen. <b>Look for:</b> a summary like &ldquo;Plan: 50 to add, 0 to change, 0 to destroy.&rdquo;</p>
+
+  <h3>3. Build it</h3>
+  <pre>terraform apply</pre>
+  <p><b>What it does:</b> actually creates everything. It shows the plan again and asks you to type <code>yes</code> to confirm. <b>Heads up:</b> a cluster can take <b>10–20 minutes</b> to finish&mdash;that's normal.</p>
+
+  <div class="tip">
+    <b>Then connect with kubectl.</b> After it finishes, point your Kubernetes tool at the new cluster:
+    <pre style="margin-top:8px">aws eks update-kubeconfig --region us-east-1 --name basic-eks
+kubectl get nodes</pre>
+    If you see your worker node listed, congratulations&mdash;your cluster is live! (Guide: <a href="https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html" target="_blank" rel="noopener">Connecting kubectl to EKS</a>.)
+  </div>
+
+  <details class="more">
+    <summary>More info: useful extra commands</summary>
+    <div class="more-inner">
+      <ul>
+        <li><code>terraform fmt</code> — auto-tidies the spacing in your file.</li>
+        <li><code>terraform validate</code> — checks for typos and errors without contacting AWS.</li>
+        <li><code>terraform plan -out=plan.tfplan</code> — saves the plan so <code>apply</code> uses exactly that.</li>
+        <li><code>terraform show</code> — displays the current state of what you've built.</li>
+      </ul>
+      <p>Full CLI reference: <a href="https://developer.hashicorp.com/terraform/cli/commands" target="_blank" rel="noopener">Terraform CLI commands</a>.</p>
+    </div>
+  </details>
+
+  <!-- ===================== SECTION 7: CLEANUP ===================== -->
+  <h2 id="cleanup"><span class="num">07</span>Cleaning up (so you don't get charged)</h2>
+
+  <p>A running EKS cluster costs money every hour&mdash;both for the control plane and the worker computers. When you're done experimenting, tear it all down with one command:</p>
+
+  <pre>terraform destroy</pre>
+
+  <p><b>What it does:</b> deletes everything this file created, in the right order. It asks you to type <code>yes</code> first. Because Terraform remembers what it built, cleanup is one command instead of dozens of manual clicks.</p>
+
+  <div class="note">
+    <b>Don't skip this while learning.</b> Forgetting a cluster running overnight is the classic way to get a surprise bill. When you stop for the day, run <code>terraform destroy</code>. You can always rebuild with <code>terraform apply</code> later&mdash;that's the whole point of Infrastructure as Code.
+  </div>
+
+  <details class="more">
+    <summary>More info: roughly what does this cost?</summary>
+    <div class="more-inner">
+      <p>Two main charges while it runs:</p>
+      <ul>
+        <li><b>EKS control plane</b> — a flat hourly fee per cluster (it runs whether or not you have apps on it).</li>
+        <li><b>Worker nodes</b> — the EC2 hourly price for your <code>t3.small</code> machine(s).</li>
+      </ul>
+      <p>We set <code>enable_nat_gateway = false</code> earlier specifically to avoid an extra hourly charge. Always check current prices for your region:</p>
+      <ul>
+        <li><a href="https://aws.amazon.com/eks/pricing/" target="_blank" rel="noopener">Amazon EKS pricing</a></li>
+        <li><a href="https://aws.amazon.com/ec2/pricing/on-demand/" target="_blank" rel="noopener">Amazon EC2 on-demand pricing</a></li>
+      </ul>
+    </div>
+  </details>
+
+  <!-- ===================== RECAP ===================== -->
+  <h2><span class="num">08</span>Quick recap</h2>
+  <p>You learned that Terraform turns a text file into real cloud infrastructure. You installed the tools, stored your AWS keys safely, and read a real config line by line: the <b>terraform</b> block sets versions, the <b>provider</b> block picks a region, the <b>vpc</b> module builds a private network, and the <b>eks</b> module builds a Kubernetes cluster that plugs into that network. Finally, four commands&mdash;<code>init</code>, <code>plan</code>, <code>apply</code>, and <code>destroy</code>&mdash;build and tear it all down.</p>
+
+  <footer>
+    <p>Reference links point to the official HashiCorp, Terraform Registry, and AWS documentation, which are updated regularly&mdash;always confirm exact version numbers and argument names there before a production deployment. This guide is for learning and is not affiliated with or endorsed by IBM, HashiCorp, or Amazon.</p>
+  </footer>
+
+</div>
+
+<script>
+  /* ============================================================
+     Font-size control: slider + A- / A+ buttons, 14px to 36px.
+     We change one CSS variable (--base-font) on the root element,
+     and the whole page scales because everything uses rem/em or
+     inherits from body's font-size.
+     ============================================================ */
+  (function(){
+    var root     = document.documentElement;
+    var range    = document.getElementById('fontRange');
+    var readout  = document.getElementById('fontReadout');
+    var decBtn   = document.getElementById('decFont');
+    var incBtn   = document.getElementById('incFont');
+    var MIN = 14, MAX = 36;
+
+    function apply(px){
+      px = Math.max(MIN, Math.min(MAX, px)); // keep inside 14–36
+      root.style.setProperty('--base-font', px + 'px');
+      range.value = px;
+      readout.textContent = px + 'px';
+    }
+
+    // Slider drag
+    range.addEventListener('input', function(){
+      apply(parseInt(range.value, 10));
+    });
+
+    // Buttons step by 2px
+    decBtn.addEventListener('click', function(){
+      apply(parseInt(range.value, 10) - 2);
+    });
+    incBtn.addEventListener('click', function(){
+      apply(parseInt(range.value, 10) + 2);
+    });
+
+    // Start at the default
+    apply(parseInt(range.value, 10));
+  })();
+</script>
+
+</body>
+</html>
