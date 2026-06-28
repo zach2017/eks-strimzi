@@ -411,3 +411,7 @@ echo ""
 echo "Then test Kubernetes access with:"
 echo "kubectl get svc"
 
+# Watch the status until it says "ACTIVE"
+aws eks describe-cluster --name my-micro-cluster \
+  --query 'cluster.status' --output text
+
