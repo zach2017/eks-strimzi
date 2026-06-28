@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-kafka-monitor
+  namespace: kafka
+  labels:
+    app: python-kafka-monitor
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: python-kafka-monitor
+  template:
+    metadata:
+      labels:
+        app: python-kafka-monitor
+        version: v1
+    spec:
+      containers:
+      - name: python-kafka-monitor
+        image: python-kafka-monitor:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi

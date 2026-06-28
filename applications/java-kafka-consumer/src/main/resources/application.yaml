@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: java-kafka-consumer
+  kafka:
+    bootstrap-servers: kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092
+    consumer:
+      group-id: java-consumer-group
+      auto-offset-reset: earliest
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    properties:
+      linger.ms: 100
+      batch.size: 32768
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.example: DEBUG

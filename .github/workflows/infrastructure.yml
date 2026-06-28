@@ -1,0 +1,115 @@
+name: Infrastructure CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/infrastructure.yml'
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  TERRAFORM_VERSION: 1.5.0
+
+jobs:
+  validate:
+    name: Validate Terraform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      
+      - name: Terraform Format
+        run: terraform fmt -check -recursive terraform/
+      
+      - name: Terraform Init
+        run: cd terraform && terraform init -backend=false
+      
+      - name: Terraform Validate
+        run: cd terraform && terraform validate
+
+  plan:
+    name: Plan Infrastructure
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      
+      - name: Terraform Init
+        run: cd terraform && terraform init
+      
+      - name: Terraform Plan (Dev)
+        run: |
+          cd terraform
+          terraform plan -var-file="environments/dev/terraform.tfvars" -out=dev.tfplan
+      
+      - name: Comment PR with Plan
+        uses: actions/github-script@v6
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = exec('cd terraform && terraform show -no-color dev.tfplan');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '```\n' + plan.stdout + '\n```'
+            });
+
+  test-applications:
+    name: Test Applications
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      
+      - name: Build Java Consumer
+        run: |
+          cd applications/java-kafka-consumer
+          mvn clean package -DskipTests
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0'
+      
+      - name: Build .NET Producer
+        run: |
+          cd applications/dotnet-kafka-producer
+          dotnet build
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Test Python Monitor
+        run: |
+          pip install -r scripts/python/requirements.txt
+          python -m py_compile scripts/python/monitor.py

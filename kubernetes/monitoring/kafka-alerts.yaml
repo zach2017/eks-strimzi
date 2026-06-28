@@ -1,0 +1,46 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kafka-alerts
+  namespace: monitoring
+spec:
+  groups:
+  - name: kafka.rules
+    interval: 30s
+    rules:
+    - alert: KafkaBrokerDown
+      expr: up{job="kafka-broker"} == 0
+      for: 5m
+      annotations:
+        summary: "Kafka broker {{ $labels.instance }} is down"
+
+    - alert: KafkaHighControllerCpuUsage
+      expr: 'kafka_controller_KafkaController_ActiveControllerCount > 0 and
+             process_cpu_usage > 0.8'
+      for: 5m
+      annotations:
+        summary: "High CPU usage on Kafka controller"
+
+    - alert: KafkaHighMemoryUsage
+      expr: 'jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"} > 0.85'
+      for: 5m
+      annotations:
+        summary: "High memory usage on Kafka broker {{ $labels.pod }}"
+
+    - alert: KafkaReplicationLag
+      expr: 'kafka_consumergroup_lag > 10000'
+      for: 5m
+      annotations:
+        summary: "High replication lag on consumer group {{ $labels.consumergroup }}"
+
+    - alert: KafkaUnderReplicatedPartitions
+      expr: 'kafka_server_ReplicaManager_UnderReplicatedPartitions > 0'
+      for: 5m
+      annotations:
+        summary: "Under-replicated partitions detected"
+
+    - alert: KafkaLeaderElection
+      expr: 'rate(kafka_controller_KafkaController_LeaderElectionRateAndTimeMs[5m]) > 0'
+      for: 2m
+      annotations:
+        summary: "Leader election in progress"
