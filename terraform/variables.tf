@@ -51,15 +51,15 @@ variable "public_subnet_cidrs" {
 variable "node_groups" {
   description = "EKS node group configurations"
   type = map(object({
-    desired_size    = number
-    min_size        = number
-    max_size        = number
-    instance_types  = list(string)
-    disk_size       = number
-    labels          = map(string)
-    taints          = list(object({ key = string, value = string, effect = string }))
+    desired_size   = number
+    min_size       = number
+    max_size       = number
+    instance_types = list(string)
+    disk_size      = number
+    labels         = map(string)
+    taints         = list(object({ key = string, value = string, effect = string }))
   }))
-  
+
   default = {
     general = {
       desired_size   = 3
@@ -91,11 +91,11 @@ variable "kafka_config" {
   description = "Kafka broker configuration"
   type        = map(string)
   default = {
-    "auto.create.topics.enable"       = "false"
-    "default.replication.factor"      = "3"
-    "min.insync.replicas"             = "2"
-    "log.retention.hours"             = "168"
-    "log.cleanup.policy"              = "delete"
+    "auto.create.topics.enable"  = "false"
+    "default.replication.factor" = "3"
+    "min.insync.replicas"        = "2"
+    "log.retention.hours"        = "168"
+    "log.cleanup.policy"         = "delete"
   }
 }
 

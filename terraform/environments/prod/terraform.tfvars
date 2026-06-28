@@ -1,7 +1,7 @@
-aws_region       = "us-east-1"
-project_name     = "eks-strimzi"
-environment      = "prod"
-cluster_name     = "eks-strimzi-prod"
+aws_region         = "us-east-1"
+project_name       = "eks-strimzi"
+environment        = "prod"
+cluster_name       = "eks-strimzi-prod"
 kubernetes_version = "1.29"
 
 vpc_cidr             = "10.0.0.0/16"
@@ -43,12 +43,12 @@ strimzi_version = "0.39.0"
 kafka_version   = "3.7.0"
 
 kafka_config = {
-  "auto.create.topics.enable"       = "false"
-  "default.replication.factor"      = "3"
-  "min.insync.replicas"             = "2"
-  "log.retention.hours"             = "168"
-  "log.cleanup.policy"              = "delete"
-  "compression.type"                = "snappy"
+  "auto.create.topics.enable"  = "false"
+  "default.replication.factor" = "3"
+  "min.insync.replicas"        = "2"
+  "log.retention.hours"        = "168"
+  "log.cleanup.policy"         = "delete"
+  "compression.type"           = "snappy"
 }
 
 zookeeper_replicas = 3

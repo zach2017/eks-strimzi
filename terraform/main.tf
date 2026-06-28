@@ -1,6 +1,6 @@
 terraform {
   required_version = ">= 1.0"
-  
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -39,26 +39,52 @@ provider "aws" {
   }
 }
 
+# Configure Kubernetes provider with EKS cluster details
+provider "kubernetes" {
+  host                   = module.eks_cluster.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks_cluster.cluster_ca)
+  token                  = data.aws_eks_cluster_auth.cluster.token
+}
+
+# Get EKS cluster auth token for Kubernetes provider
+data "aws_eks_cluster_auth" "cluster" {
+  name = var.cluster_name
+}
+
+# Configure Helm provider with EKS cluster details
+provider "helm" {
+  kubernetes {
+    host                   = module.eks_cluster.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks_cluster.cluster_ca)
+    token                  = data.aws_eks_cluster_auth.cluster.token
+  }
+}
+
 # Get current AWS account ID and caller identity
 data "aws_caller_identity" "current" {}
 data "aws_availability_zones" "available" {
   state = "available"
 }
 
+# Limit availability zones to match subnet count (3 subnets)
+locals {
+  availability_zones = slice(data.aws_availability_zones.available.names, 0, min(length(data.aws_availability_zones.available.names), 3))
+}
+
 # EKS Cluster Module
 module "eks_cluster" {
   source = "./modules/eks-cluster"
 
-  cluster_name           = var.cluster_name
-  cluster_version        = var.kubernetes_version
-  region                 = var.aws_region
-  vpc_cidr               = var.vpc_cidr
-  availability_zones     = data.aws_availability_zones.available.names
-  private_subnet_cidrs   = var.private_subnet_cidrs
-  public_subnet_cidrs    = var.public_subnet_cidrs
-  
+  cluster_name         = var.cluster_name
+  cluster_version      = var.kubernetes_version
+  region               = var.aws_region
+  vpc_cidr             = var.vpc_cidr
+  availability_zones   = local.availability_zones
+  private_subnet_cidrs = var.private_subnet_cidrs
+  public_subnet_cidrs  = var.public_subnet_cidrs
+
   node_groups = var.node_groups
-  
+
   enable_irsa            = true
   enable_cluster_logging = true
 
@@ -66,15 +92,16 @@ module "eks_cluster" {
 }
 
 # Strimzi Module
+# Wait for cluster to be fully ready before deploying
 module "strimzi" {
   source = "./modules/strimzi"
 
-  cluster_name       = module.eks_cluster.cluster_name
-  cluster_endpoint   = module.eks_cluster.cluster_endpoint
-  cluster_ca         = module.eks_cluster.cluster_ca
-  strimzi_version    = var.strimzi_version
-  kafka_version      = var.kafka_version
-  
+  cluster_name     = module.eks_cluster.cluster_name
+  cluster_endpoint = module.eks_cluster.cluster_endpoint
+  cluster_ca       = module.eks_cluster.cluster_ca
+  strimzi_version  = var.strimzi_version
+  kafka_version    = var.kafka_version
+
   kafka_config       = var.kafka_config
   zookeeper_replicas = var.zookeeper_replicas
   kafka_brokers      = var.kafka_brokers
@@ -83,13 +110,14 @@ module "strimzi" {
 }
 
 # Monitoring Module
+# Wait for cluster to be fully ready before deploying
 module "monitoring" {
   source = "./modules/monitoring"
 
   cluster_name     = module.eks_cluster.cluster_name
   cluster_endpoint = module.eks_cluster.cluster_endpoint
   cluster_ca       = module.eks_cluster.cluster_ca
-  
+
   enable_prometheus = var.enable_prometheus
   enable_grafana    = var.enable_grafana
   enable_loki       = var.enable_loki

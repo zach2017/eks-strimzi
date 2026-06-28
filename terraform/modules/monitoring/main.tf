@@ -25,6 +25,7 @@ provider "helm" {
   }
 }
 
+# Get EKS cluster auth token
 data "aws_eks_cluster_auth" "cluster" {
   name = var.cluster_name
 }
@@ -36,18 +37,11 @@ resource "kubernetes_namespace" "monitoring" {
   }
 }
 
-# Add Prometheus community Helm repository
-resource "helm_repository" "prometheus_community" {
-  count = var.enable_prometheus ? 1 : 0
-  name  = "prometheus-community"
-  url   = "https://prometheus-community.github.io/helm-charts"
-}
-
 # Install kube-prometheus-stack
 resource "helm_release" "kube_prometheus_stack" {
   count            = var.enable_prometheus ? 1 : 0
   name             = "kube-prometheus-stack"
-  repository       = helm_repository.prometheus_community[0].name
+  repository       = "https://prometheus-community.github.io/helm-charts"
   chart            = "kube-prometheus-stack"
   namespace        = kubernetes_namespace.monitoring.metadata[0].name
   create_namespace = false
@@ -71,14 +65,12 @@ resource "helm_release" "kube_prometheus_stack" {
     name  = "prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues"
     value = "false"
   }
-
-  depends_on = [helm_repository.prometheus_community]
 }
 
 # ServiceMonitor for Kafka/Strimzi metrics
 resource "kubernetes_manifest" "kafka_service_monitor" {
   count = var.enable_prometheus ? 1 : 0
-  
+
   manifest = {
     apiVersion = "monitoring.coreos.com/v1"
     kind       = "ServiceMonitor"
@@ -95,7 +87,7 @@ resource "kubernetes_manifest" "kafka_service_monitor" {
       }
       endpoints = [
         {
-          port   = "tcp-prometheus"
+          port     = "tcp-prometheus"
           interval = "30s"
         }
       ]
@@ -105,18 +97,11 @@ resource "kubernetes_manifest" "kafka_service_monitor" {
   depends_on = [helm_release.kube_prometheus_stack]
 }
 
-# Add Grafana repository
-resource "helm_repository" "grafana" {
-  count = var.enable_grafana && var.enable_loki ? 1 : 0
-  name  = "grafana"
-  url   = "https://grafana.github.io/helm-charts"
-}
-
 # Install Loki
 resource "helm_release" "loki_stack" {
   count            = var.enable_loki ? 1 : 0
   name             = "loki-stack"
-  repository       = helm_repository.grafana[0].name
+  repository       = "https://grafana.github.io/helm-charts"
   chart            = "loki-stack"
   namespace        = kubernetes_namespace.monitoring.metadata[0].name
   create_namespace = false

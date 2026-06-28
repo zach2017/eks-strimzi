@@ -62,35 +62,35 @@ resource "kubernetes_manifest" "kafka_cluster" {
     }
     spec = {
       kafka = {
-        version = var.kafka_version
+        version  = var.kafka_version
         replicas = var.kafka_brokers
-        
+
         listeners = [
           {
-            name         = "plain"
-            port         = 9092
-            type         = "internal"
-            tls          = false
+            name = "plain"
+            port = 9092
+            type = "internal"
+            tls  = false
           },
           {
-            name         = "tls"
-            port         = 9093
-            type         = "internal"
-            tls          = true
+            name = "tls"
+            port = 9093
+            type = "internal"
+            tls  = true
           },
           {
-            name         = "external"
-            port         = 9094
-            type         = "nodeport"
-            tls          = false
+            name = "external"
+            port = 9094
+            type = "nodeport"
+            tls  = false
           }
         ]
 
         config = var.kafka_config
 
         storage = {
-          type = "persistent-claim"
-          size = var.kafka_storage_size
+          type  = "persistent-claim"
+          size  = var.kafka_storage_size
           class = "ebs-sc"
         }
 
@@ -100,27 +100,17 @@ resource "kubernetes_manifest" "kafka_cluster" {
           }
           requests = {
             memory = var.kafka_memory_request
-            cpu = "500m"
-          }
-        }
-
-        dynamic "metricsConfig" {
-          for_each = var.enable_metrics ? [1] : []
-          content {
-            type = "jmxPrometheusExporter"
-            valueSecrets = {
-              "prometheus-jmx-config" = "prometheus-jmx-config"
-            }
+            cpu    = "500m"
           }
         }
       }
 
       zookeeper = {
         replicas = var.zookeeper_replicas
-        
+
         storage = {
-          type = "persistent-claim"
-          size = var.zookeeper_storage_size
+          type  = "persistent-claim"
+          size  = var.zookeeper_storage_size
           class = "ebs-sc"
         }
 
@@ -130,14 +120,14 @@ resource "kubernetes_manifest" "kafka_cluster" {
           }
           requests = {
             memory = "256Mi"
-            cpu = "100m"
+            cpu    = "100m"
           }
         }
       }
 
       entityOperator = {
         topicOperator = {}
-        userOperator = {}
+        userOperator  = {}
       }
     }
   }
@@ -154,15 +144,15 @@ resource "kubernetes_storage_class" "ebs" {
     name = "ebs-sc"
   }
 
-  storage_provisioner = "ebs.csi.aws.com"
-  reclaim_policy      = "Delete"
+  storage_provisioner    = "ebs.csi.aws.com"
+  reclaim_policy         = "Delete"
   allow_volume_expansion = true
 
   parameters = {
-    type            = "gp3"
-    iops            = "3000"
-    throughput      = "125"
-    "encrypted"     = "true"
+    type        = "gp3"
+    iops        = "3000"
+    throughput  = "125"
+    "encrypted" = "true"
   }
 }
 
@@ -179,10 +169,10 @@ resource "kubernetes_manifest" "example_topic" {
       }
     }
     spec = {
-      partitions = 3
+      partitions        = 3
       replicationFactor = min(3, var.kafka_brokers)
       config = {
-        "retention.ms" = "604800000"
+        "retention.ms"   = "604800000"
         "cleanup.policy" = "delete"
       }
     }

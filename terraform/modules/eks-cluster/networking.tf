@@ -6,7 +6,7 @@ resource "aws_vpc" "main" {
   tags = merge(
     var.tags,
     {
-      "Name"                                       = "${var.cluster_name}-vpc"
+      "Name"                                      = "${var.cluster_name}-vpc"
       "kubernetes.io/cluster/${var.cluster_name}" = "shared"
     }
   )
@@ -22,7 +22,7 @@ resource "aws_subnet" "private" {
   tags = merge(
     var.tags,
     {
-      "Name"                                       = "${var.cluster_name}-private-${count.index + 1}"
+      "Name"                                      = "${var.cluster_name}-private-${count.index + 1}"
       "kubernetes.io/cluster/${var.cluster_name}" = "shared"
       "kubernetes.io/role/internal-elb"           = "1"
     }
@@ -39,7 +39,7 @@ resource "aws_subnet" "public" {
   tags = merge(
     var.tags,
     {
-      "Name"                                       = "${var.cluster_name}-public-${count.index + 1}"
+      "Name"                                      = "${var.cluster_name}-public-${count.index + 1}"
       "kubernetes.io/cluster/${var.cluster_name}" = "shared"
       "kubernetes.io/role/elb"                    = "1"
     }
@@ -84,8 +84,8 @@ resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
   route {
-    cidr_block      = "0.0.0.0/0"
-    gateway_id      = aws_internet_gateway.main.id
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
   }
 
   tags = merge(
